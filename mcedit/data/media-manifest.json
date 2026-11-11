@@ -1,0 +1,69 @@
+{
+  "schema": "mcedit-media/1",
+  "cameras": {
+    "host": {
+      "name": "HOST CU",
+      "role": "host_closeup",
+      "rate": {
+        "num": 25,
+        "den": 1
+      },
+      "true_offset_source_minus_program": 1.0,
+      "counter_start": 1000,
+      "clips": [
+        {
+          "path": "media/host/host-1.mp4",
+          "start": 1.0,
+          "duration": 11.0,
+          "frame_count": 275,
+          "has_audio": true
+        },
+        {
+          "path": "media/host/host-2.mp4",
+          "start": 15.0,
+          "duration": 16.0,
+          "frame_count": 400,
+          "has_audio": true
+        }
+      ]
+    },
+    "guest": {
+      "name": "GUEST CU",
+      "role": "guest_closeup",
+      "rate": {
+        "num": 25,
+        "den": 1
+      },
+      "true_offset_source_minus_program": -2.0,
+      "counter_start": 5000,
+      "clips": [
+        {
+          "path": "media/guest/guest-1.mp4",
+          "start": -2.0,
+          "duration": 12.0,
+          "frame_count": 300,
+          "has_audio": true
+        }
+      ]
+    },
+    "wide": {
+      "name": "WIDE SHOT",
+      "role": "wide",
+      "rate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "true_offset_source_minus_program": 0.5,
+      "counter_start": 9000,
+      "clips": [
+        {
+          "path": "media/wide/wide-1.mp4",
+          "start": 0.5,
+          "duration": 28.0,
+          "frame_count": 839,
+          "has_audio": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcedit · 新闻采访多机剪辑</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>mcedit <span>新闻采访多机剪辑系统</span></h1>
+  <div class="header-actions">
+    <label>工程
+      <select id="project-select"></select>
+    </label>
+    <button id="btn-load">载入</button>
+    <button id="btn-new">新建空白工程</button>
+    <button id="btn-validate">校验</button>
+    <button id="btn-save" class="primary">保存工程</button>
+    <button id="btn-render" class="primary">导出成片</button>
+  </div>
+</header>
+
+<main>
+  <section class="preview-pane">
+    <div class="source-monitor" id="monitors"></div>
+    <div class="preview-stage">
+      <canvas id="preview" width="640" height="360"></canvas>
+      <div id="preview-badge" class="badge">未播放</div>
+      <div id="gap-banner" class="gap-banner hidden"></div>
+    </div>
+    <div class="transport">
+      <button id="btn-play">▶ 播放</button>
+      <button id="btn-pause">⏸ 暂停</button>
+      <button id="btn-cut" class="primary">在此切镜</button>
+      <span class="clock">节目时间 <b id="clock">00:00.000</b></span>
+      <span class="clock">输出帧 <b id="output-frame">0</b></span>
+      <input type="range" id="scrub" min="0" max="1000" value="0" step="1">
+      <span id="duration-label">00:00.000</span>
+    </div>
+    <div class="cut-panel">
+      <div class="cut-panel-head">
+        <h3>切镜点（引用节目位置 + 被选机位）</h3>
+        <button id="btn-clear-cuts">清空</button>
+      </div>
+      <table id="cuts-table">
+        <thead><tr><th>#</th><th>节目时间</th><th>机位</th><th>缺口</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="side-pane">
+    <h3>机位与锚点</h3>
+    <p class="hint">对齐只能由人工共同锚点建立；系统从不读取文件创建时间。</p>
+    <div id="sources"></div>
+
+    <h3>缺口处理（必须明确选择）</h3>
+    <div class="gap-policy">
+      <label><input type="radio" name="gap" value="black" checked> 留黑</label>
+      <label><input type="radio" name="gap" value="fallback"> 退回备用机位
+        <select id="fallback-source"></select>
+      </label>
+    </div>
+
+    <h3>音频主轨（独立于画面切换）</h3>
+    <div class="audio-master">
+      <label>主轨机位/文件 <select id="audio-source"></select></label>
+      <label>媒体起点对应节目时间 <input type="number" id="audio-start" step="0.001" value="0"></label>
+      <p class="hint">切镜只换画面，不会把第二份采访声音叠进成片。</p>
+    </div>
+
+    <h3>校验与导出</h3>
+    <div id="report" class="report"></div>
+    <div id="render-status" class="report"></div>
+  </section>
+</main>
+
+<dialog id="anchor-dialog">
+  <form method="dialog" id="anchor-form">
+    <h3>编辑锚点 · <span id="anchor-source-name"></span></h3>
+    <p class="hint">在三个机位中找到同一个可见事件（如主持人抬手），分别填它在节目时间线和本机时间线上的位置。</p>
+    <label>说明 <input id="anchor-label" placeholder="例如：主持人抬手"></label>
+    <label>节目时间（秒） <input id="anchor-program" type="number" step="0.001" required></label>
+    <label>本机时间码对应秒数 <input id="anchor-source" type="number" step="0.001" required></label>
+    <label>人工不确定度 ±秒（0 表示精确） <input id="anchor-uncertainty" type="number" step="0.005" min="0" value="0"></label>
+    <div id="anchor-range" class="anchor-range"></div>
+    <menu>
+      <button value="cancel">取消</button>
+      <button id="anchor-save" value="save" class="primary">保存锚点</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="new-dialog">
+  <form method="dialog" id="new-form">
+    <h3>新建工程</h3>
+    <label>工程名 <input id="new-name" required placeholder="news-2026-11-11"></label>
+    <label>时长（秒） <input id="new-duration" type="number" step="0.1" value="30" required></label>
+    <label>输出帧率 <input id="new-rate" value="25"></label>
+    <menu>
+      <button value="cancel">取消</button>
+      <button value="create" class="primary">创建</button>
+    </menu>
+  </form>
+</dialog>
+
+<script src="/app.js"></script>
+</body>
+</html>

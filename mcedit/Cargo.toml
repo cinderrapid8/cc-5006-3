@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mcedit-core",
+    "crates/mcedit-cli",
+    "crates/mcedit-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+
+[profile.release]
+lto = true
+codegen-units = 1

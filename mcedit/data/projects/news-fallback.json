@@ -1,0 +1,165 @@
+{
+  "name": "news-fallback",
+  "output": {
+    "width": 640,
+    "height": 360,
+    "rate": {
+      "num": 25,
+      "den": 1
+    },
+    "sample_rate": 48000,
+    "duration": 30.0
+  },
+  "sources": [
+    {
+      "id": "host",
+      "name": "HOST CU",
+      "role": "host_closeup",
+      "rate": {
+        "num": 25,
+        "den": 1
+      },
+      "clips": [
+        {
+          "path": "media/host/host-1.mp4",
+          "start": 1.0,
+          "duration": 11.0,
+          "frame_count": 275,
+          "has_audio": true
+        },
+        {
+          "path": "media/host/host-2.mp4",
+          "start": 15.0,
+          "duration": 16.0,
+          "frame_count": 400,
+          "has_audio": true
+        }
+      ],
+      "anchors": [
+        {
+          "id": "host-anc-1",
+          "label": "共同动作：主持人抬手",
+          "program_time": 5.0,
+          "source_time": 6.0,
+          "uncertainty": 0.0
+        },
+        {
+          "id": "host-anc-2",
+          "label": "共同动作：嘉宾翻页",
+          "program_time": 9.0,
+          "source_time": 10.0,
+          "uncertainty": 0.0
+        }
+      ]
+    },
+    {
+      "id": "guest",
+      "name": "GUEST CU",
+      "role": "guest_closeup",
+      "rate": {
+        "num": 25,
+        "den": 1
+      },
+      "clips": [
+        {
+          "path": "media/guest/guest-1.mp4",
+          "start": -2.0,
+          "duration": 12.0,
+          "frame_count": 300,
+          "has_audio": true
+        }
+      ],
+      "anchors": [
+        {
+          "id": "guest-anc-1",
+          "label": "共同动作：主持人抬手",
+          "program_time": 5.0,
+          "source_time": 3.0,
+          "uncertainty": 0.0
+        },
+        {
+          "id": "guest-anc-2",
+          "label": "共同动作：嘉宾翻页",
+          "program_time": 9.0,
+          "source_time": 7.0,
+          "uncertainty": 0.0
+        }
+      ]
+    },
+    {
+      "id": "wide",
+      "name": "WIDE SHOT",
+      "role": "wide",
+      "rate": {
+        "num": 30000,
+        "den": 1001
+      },
+      "clips": [
+        {
+          "path": "media/wide/wide-1.mp4",
+          "start": 0.5,
+          "duration": 28.0,
+          "frame_count": 839,
+          "has_audio": true
+        }
+      ],
+      "anchors": [
+        {
+          "id": "wide-anc-1",
+          "label": "共同动作：主持人抬手",
+          "program_time": 5.0,
+          "source_time": 5.5,
+          "uncertainty": 0.0
+        },
+        {
+          "id": "wide-anc-2",
+          "label": "共同动作：嘉宾翻页",
+          "program_time": 9.0,
+          "source_time": 9.5,
+          "uncertainty": 0.0
+        }
+      ]
+    }
+  ],
+  "cuts": [
+    {
+      "id": "cut-1",
+      "start": 0.0,
+      "source_id": "host"
+    },
+    {
+      "id": "cut-2",
+      "start": 6.0,
+      "source_id": "guest"
+    },
+    {
+      "id": "cut-3",
+      "start": 10.5,
+      "source_id": "host"
+    },
+    {
+      "id": "cut-4",
+      "start": 15.0,
+      "source_id": "wide"
+    },
+    {
+      "id": "cut-5",
+      "start": 20.0,
+      "source_id": "host"
+    },
+    {
+      "id": "cut-6",
+      "start": 24.0,
+      "source_id": "wide"
+    }
+  ],
+  "gap_policy": {
+    "mode": "fallback",
+    "source_id": "wide"
+  },
+  "audio": {
+    "source_id": "host",
+    "program_start": 0.0,
+    "external_path": null
+  }
+}

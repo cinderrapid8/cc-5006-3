@@ -1,0 +1,13 @@
+[package]
+name = "mcedit-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "mcedit"
+path = "src/main.rs"
+
+[dependencies]
+mcedit-core = { path = "../mcedit-core" }
+mcedit-server = { path = "../mcedit-server" }
