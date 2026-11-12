@@ -1,0 +1,339 @@
+{
+  "project": "interview-switch-repro",
+  "rule_old": "half-open contains() with half-frame epsilon + unclamped round-to-nearest offset",
+  "rule_new": "presentation frame grid [start+k*fd, start+(k+1)*fd); range-checked floor",
+  "last_presentation_frame_defects_fixed": [
+    {
+      "output_frame": 100,
+      "program_time": 4.0,
+      "source_id": "cam_c",
+      "source_time": 4.5,
+      "old_clip_relative_frame": null,
+      "new_clip_relative_frame": 119,
+      "rendered_absolute_frame": 134,
+      "defect": "final presentation frame wrongly treated as gap"
+    }
+  ],
+  "frame_zero_misassignment_defects_fixed": [
+    {
+      "source_id": "cam_a",
+      "source_time": -0.01,
+      "old_clip_relative_frame": 0,
+      "new_clip_relative_frame": null,
+      "defect": "pre-start time clamped to frame 0 (query-level probe)"
+    },
+    {
+      "source_id": "cam_b",
+      "source_time": -2.01,
+      "old_clip_relative_frame": 0,
+      "new_clip_relative_frame": null,
+      "defect": "pre-start time clamped to frame 0 (query-level probe)"
+    },
+    {
+      "source_id": "cam_c",
+      "source_time": 0.49166,
+      "old_clip_relative_frame": 0,
+      "new_clip_relative_frame": null,
+      "defect": "pre-start time clamped to frame 0 (query-level probe)"
+    },
+    {
+      "source_id": "cam_v",
+      "source_time": -0.01,
+      "old_clip_relative_frame": 0,
+      "new_clip_relative_frame": null,
+      "defect": "pre-start time clamped to frame 0 (query-level probe)"
+    }
+  ],
+  "prestart_query_probes": [
+    {
+      "source_id": "cam_a",
+      "probe_source_time": -0.01,
+      "clip_start": 0.0,
+      "old_query_frame": 0,
+      "new_query_frame": null,
+      "old_misassigns_frame_zero": true,
+      "new_rejects_as_gap": true
+    },
+    {
+      "source_id": "cam_b",
+      "probe_source_time": -2.01,
+      "clip_start": -2.0,
+      "old_query_frame": 0,
+      "new_query_frame": null,
+      "old_misassigns_frame_zero": true,
+      "new_rejects_as_gap": true
+    },
+    {
+      "source_id": "cam_c",
+      "probe_source_time": 0.491658,
+      "clip_start": 0.5,
+      "old_query_frame": 0,
+      "new_query_frame": null,
+      "old_misassigns_frame_zero": true,
+      "new_rejects_as_gap": true
+    },
+    {
+      "source_id": "cam_v",
+      "probe_source_time": -0.01,
+      "clip_start": 0.0,
+      "old_query_frame": 0,
+      "new_query_frame": null,
+      "old_misassigns_frame_zero": true,
+      "new_rejects_as_gap": true
+    }
+  ],
+  "unexplained_frame_offsets": [],
+  "boundary_defects_repaired": true,
+  "no_unexplained_offset": true,
+  "cut_boundaries": [
+    {
+      "cut_id": "cut-1",
+      "cut_start": 0.0,
+      "selected_source": "cam_a",
+      "before": {
+        "output_frame": 0,
+        "program_time": 0.0,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 0,
+          "source_time": 0
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 0
+        }
+      },
+      "after": {
+        "output_frame": 1,
+        "program_time": 0.04,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 1,
+          "source_time": 0.04
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 1
+        }
+      }
+    },
+    {
+      "cut_id": "cut-2",
+      "cut_start": 1.5,
+      "selected_source": "cam_b",
+      "before": {
+        "output_frame": 37,
+        "program_time": 1.48,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 37,
+          "source_time": 1.48
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 37
+        }
+      },
+      "after": {
+        "output_frame": 38,
+        "program_time": 1.52,
+        "planned": {
+          "source_id": "cam_b",
+          "source_frame": 38,
+          "source_time": -0.48
+        },
+        "actual": {
+          "source_id": "cam_b",
+          "source_frame": -12
+        }
+      }
+    },
+    {
+      "cut_id": "cut-3",
+      "cut_start": 2.002,
+      "selected_source": "cam_a",
+      "before": {
+        "output_frame": 50,
+        "program_time": 2.0,
+        "planned": {
+          "source_id": "cam_b",
+          "source_frame": 50,
+          "source_time": 0
+        },
+        "actual": {
+          "source_id": "cam_b",
+          "source_frame": 0
+        }
+      },
+      "after": {
+        "output_frame": 51,
+        "program_time": 2.04,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 51,
+          "source_time": 2.04
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 51
+        }
+      }
+    },
+    {
+      "cut_id": "cut-4",
+      "cut_start": 3.0,
+      "selected_source": "cam_c",
+      "before": {
+        "output_frame": 74,
+        "program_time": 2.96,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 74,
+          "source_time": 2.96
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 74
+        }
+      },
+      "after": {
+        "output_frame": 76,
+        "program_time": 3.04,
+        "planned": {
+          "source_id": "cam_c",
+          "source_frame": 91,
+          "source_time": 3.54
+        },
+        "actual": {
+          "source_id": "cam_c",
+          "source_frame": 106
+        }
+      }
+    },
+    {
+      "cut_id": "cut-5",
+      "cut_start": 4.003,
+      "selected_source": "cam_v",
+      "before": {
+        "output_frame": 100,
+        "program_time": 4.0,
+        "planned": {
+          "source_id": "cam_c",
+          "source_frame": 119,
+          "source_time": 4.5
+        },
+        "actual": {
+          "source_id": "cam_c",
+          "source_frame": 134
+        }
+      },
+      "after": {
+        "output_frame": 101,
+        "program_time": 4.04,
+        "planned": {
+          "source_id": "cam_v",
+          "source_frame": 101,
+          "source_time": 4.04
+        },
+        "actual": {
+          "source_id": "cam_v",
+          "source_frame": 101
+        }
+      }
+    },
+    {
+      "cut_id": "cut-6",
+      "cut_start": 5.0,
+      "selected_source": "cam_a",
+      "before": {
+        "output_frame": 124,
+        "program_time": 4.96,
+        "planned": {
+          "source_id": "cam_v",
+          "source_frame": 124,
+          "source_time": 4.96
+        },
+        "actual": {
+          "source_id": "cam_v",
+          "source_frame": 125
+        }
+      },
+      "after": {
+        "output_frame": 126,
+        "program_time": 5.04,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 126,
+          "source_time": 5.04
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 126
+        }
+      }
+    },
+    {
+      "cut_id": "cut-7",
+      "cut_start": 5.5,
+      "selected_source": "cam_b",
+      "before": {
+        "output_frame": 137,
+        "program_time": 5.48,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 137,
+          "source_time": 5.48
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 137
+        }
+      },
+      "after": {
+        "output_frame": 138,
+        "program_time": 5.52,
+        "planned": {
+          "source_id": "cam_b",
+          "source_frame": 138,
+          "source_time": 3.52
+        },
+        "actual": {
+          "source_id": "cam_b",
+          "source_frame": 88
+        }
+      }
+    },
+    {
+      "cut_id": "cut-8",
+      "cut_start": 6.0,
+      "selected_source": "cam_a",
+      "before": {
+        "output_frame": 149,
+        "program_time": 5.96,
+        "planned": {
+          "source_id": "cam_b",
+          "source_frame": 149,
+          "source_time": 3.96
+        },
+        "actual": {
+          "source_id": "cam_b",
+          "source_frame": 99
+        }
+      },
+      "after": {
+        "output_frame": 151,
+        "program_time": 6.04,
+        "planned": {
+          "source_id": "cam_a",
+          "source_frame": 151,
+          "source_time": 6.04
+        },
+        "actual": {
+          "source_id": "cam_a",
+          "source_frame": 151
+        }
+      }
+    }
+  ],
+  "pass": true
+}

@@ -175,4 +175,40 @@ check("time formatting is stable and zero-padded", () => {
   assert.ok(tc.startsWith("-"));
 });
 
+check("frame grid keeps the last presentation frame and rejects pre-start", () => {
+  // 25 fps clip [0,2): 50 frames; frame 49 owns [1.96,2.00).
+  const clip = { path: "x.mp4", start: 0.0, duration: 2.0, frame_count: 50 };
+  const source = { rate: { num: 25, den: 1 }, clips: [clip] };
+  assert.strictEqual(api.clipFrameAt(clip, 1.96, source), 49);
+  assert.strictEqual(api.clipFrameAt(clip, 1.999, source), 49);
+  // At/after the clip end there is no presentation frame.
+  assert.strictEqual(api.clipFrameAt(clip, 2.0, source), null);
+  // A time before clip start is an ingest gap, never a clamped frame 0.
+  assert.strictEqual(api.clipFrameAt(clip, -0.01, source), null);
+  assert.strictEqual(api.clipFrameAt(clip, 0.0, source), 0);
+});
+
+check("switch token advances per cut so late results cannot replace identity", () => {
+  const tokenA = api.nextSwitchToken("cam_a", 1.0);
+  assert.strictEqual(api.currentSwitchToken(), tokenA);
+  assert.strictEqual(api.getSwitchCache().sourceId, "cam_a");
+  // A later cut starts a new, strictly greater generation.
+  const tokenB = api.nextSwitchToken("cam_b", 1.5);
+  assert.ok(tokenB > tokenA);
+
+  // Simulate an in-flight seek from the old camera and a late decode result.
+  const oldVideo = { el: { readyState: 1, currentTime: 0 } };
+  api.seekSourceVideo(oldVideo, 1.0, tokenA);
+  const newVideo = { el: { readyState: 2, currentTime: 0 } };
+  api.seekSourceVideo(newVideo, 1.5, tokenB);
+
+  const pctx = { fillStyle: "", fillRect: () => {}, drawImage: () => {} };
+  // The stale camera-A result carrying the old token must be rejected.
+  assert.strictEqual(api.drawFrameIfCurrent(pctx, oldVideo, "cam_a", tokenA, 640, 360), false);
+  // Even a current-token frame is rejected when the camera id changed.
+  assert.strictEqual(api.drawFrameIfCurrent(pctx, newVideo, "cam_a", tokenB, 640, 360), false);
+  // The currently selected camera B with the current token is painted.
+  assert.strictEqual(api.drawFrameIfCurrent(pctx, newVideo, "cam_b", tokenB, 640, 360), true);
+});
+
 console.log(`\n${passed} browser-logic checks passed`);

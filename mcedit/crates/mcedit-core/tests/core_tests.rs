@@ -246,3 +246,108 @@ fn audio_plan_inserts_silence_for_master_gaps() {
     let total: f64 = plan.audio_segments.iter().map(|s| s.duration).sum();
     assert!((total - 30.0).abs() < 1e-6);
 }
+
+// ---------------------------------------------------------------------------
+// Camera-switch wrong-frame regressions.
+//
+// These pin presentation-frame membership on the engineering frame grid. They
+// are the minimal reproduction of the "wrong presentation frame near a switch"
+// class of bug: the old half-open time lookup dropped the clip's final frame
+// and let an ingest boundary assign frame 0's presentation window to frame 1.
+// Decode order (B-frames) must never influence these decisions.
+// ---------------------------------------------------------------------------
+
+fn grid_source(clips: Vec<Clip>) -> Source {
+    Source {
+        id: "g".to_string(),
+        name: "g".to_string(),
+        role: "g".to_string(),
+        rate: Rate::fps(25),
+        clips,
+        anchors: vec![anchor("g", 0.0, 0.0, 0.0)],
+    }
+}
+
+#[test]
+fn clip_last_presentation_frame_is_not_a_gap() {
+    // clip [0,2) at 25 fps = 50 frames; frame 49 is presented over [1.96,2.00).
+    let s = grid_source(vec![clip("a.mp4", 0.0, 2.0)]);
+    // Manifest frame count is authoritative for the presentation grid.
+    for t in [1.96, 1.97, 1.98, 1.99] {
+        let sm = s.sample_at(t).expect("last presentation frame must resolve");
+        assert_eq!(sm.frame_index, 49, "time {t} must present frame 49");
+        assert_eq!(sm.clip_path, "a.mp4");
+    }
+    // One frame duration beyond the clip end is genuinely missing.
+    assert!(s.sample_at(2.0).is_none());
+}
+
+#[test]
+fn split_camera_frame_grid_keeps_ingest_gap_and_frame_zero_window() {
+    // One source second (25 frames) removed at ingest between two clips.
+    // clip 2 starts at source 2.04; its frame 0 owns [2.04, 2.08).
+    let s = grid_source(vec![clip("b1.mp4", 0.0, 2.0), clip("b2.mp4", 2.04, 2.0)]);
+    for t in [2.04, 2.05, 2.06, 2.07] {
+        let sm = s.sample_at(t).expect("frame 0 presentation window must resolve");
+        assert_eq!(sm.clip_path, "b2.mp4");
+        assert_eq!(sm.frame_index, 0, "time {t} inside frame 0 window, not frame 1");
+    }
+    // The real one-frame ingest gap stays a gap (no phantom frame, no shift).
+    for t in [2.00, 2.01, 2.02, 2.03] {
+        assert!(s.sample_at(t).is_none(), "time {t} is an ingest gap");
+    }
+    // clip 1's final frame still resolves into clip 1.
+    let sm = s.sample_at(1.98).unwrap();
+    assert_eq!(sm.clip_path, "b1.mp4");
+    assert_eq!(sm.frame_index, 49);
+}
+
+#[test]
+fn boundary_fix_is_local_not_a_global_frame_shift() {
+    // Frames well inside the clip must keep their original indices; fixing the
+    // tail boundary must not slide every earlier frame by one.
+    let s = grid_source(vec![clip("a.mp4", 0.0, 4.0)]);
+    for (t, expected) in [(0.0, 0), (0.04, 1), (1.0, 25), (2.5, 62), (3.98, 99)] {
+        assert_eq!(s.sample_at(t).unwrap().frame_index, expected, "time {t}");
+    }
+}
+
+#[test]
+fn overlapping_clip_boundary_resolves_deterministically_to_earlier_clip() {
+    // Two clips whose frame windows touch; earlier source start wins and the
+    // choice must not depend on manifest iteration order.
+    let mut s = grid_source(vec![clip("later.mp4", 1.0, 2.0), clip("earlier.mp4", 0.0, 1.04)]);
+    let at_boundary = s.sample_at(1.0).unwrap();
+    assert_eq!(at_boundary.clip_path, "earlier.mp4");
+    // Reverse the manifest order: same deterministic answer.
+    s.clips.reverse();
+    let again = s.sample_at(1.0).unwrap();
+    assert_eq!(again.clip_path, "earlier.mp4");
+}
+
+#[test]
+fn switch_time_picks_correct_camera_on_each_side_of_cut() {
+    // Two cameras with different start offsets; a cut lands between output
+    // frames. Frames immediately before/after must name distinct, correct
+    // sources and monotonic source frame numbers.
+    let mut p = demo_project(GapPolicy::Black);
+    p.cuts = vec![
+        Cut { id: "c1".to_string(), start: 0.0, source_id: "host".to_string() },
+        // Non-frame-aligned cut at 8.002s.
+        Cut { id: "c2".to_string(), start: 8.002, source_id: "guest".to_string() },
+    ];
+    let plan = RenderPlan::build(&p).unwrap();
+    let at = |out_frame: u64| &plan.expectations[out_frame as usize];
+    // output frame 200 is t=8.000 -> still host; frame 201 t=8.040 -> guest.
+    match &at(200).kind {
+        ExpectationKind::Frame { source_id, source_frame, .. } => {
+            assert_eq!(source_id, "host");
+            assert!(*source_frame >= 0);
+        }
+        other => panic!("frame 200 should be host, got {other:?}"),
+    }
+    match &at(201).kind {
+        ExpectationKind::Frame { source_id, .. } => assert_eq!(source_id, "guest"),
+        other => panic!("frame 201 should be guest, got {other:?}"),
+    }
+}

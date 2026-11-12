@@ -25,8 +25,51 @@ impl Clip {
         self.start + self.duration
     }
 
+    /// Time-based half-open membership with a half-frame epsilon. Kept for the
+    /// coarse availability-interval math; frame-accurate lookup must go through
+    /// [`Clip::frame_at`] instead because the last presentation frame extends to
+    /// the clip end even though its timestamp sits one frame duration earlier.
     pub fn contains(&self, source_time: f64, eps: f64) -> bool {
         source_time >= self.start - eps && source_time < self.end() - eps
+    }
+
+    /// Number of frames the clip actually presents. The manifest carries an
+    /// explicit count; fall back to the duration-derived grid when absent.
+    pub fn effective_frame_count(&self, rate: Rate) -> u64 {
+        if self.frame_count > 0 {
+            self.frame_count
+        } else {
+            crate::time::nearest_frame(self.duration, rate).max(0) as u64
+        }
+    }
+
+    /// Locate the clip-relative presentation frame covering `source_time`.
+    ///
+    /// Frame `k` is presented over the half-open interval
+    /// `[start + k*frame_dur, start + (k+1)*frame_dur)`, so the clip's final
+    /// frame owns the slice up to `end()`. Membership is decided on this frame
+    /// grid — never on decode order, which B-frame streams reorder.
+    /// Returns the clip-relative frame index, or None when no frame covers it.
+    pub fn frame_at(&self, source_time: f64, rate: Rate) -> Option<i64> {
+        let frame_dur = rate.frame_duration();
+        let count = self.effective_frame_count(rate) as i64;
+        if count <= 0 {
+            return None;
+        }
+        let rel = source_time - self.start;
+        // Floor to the frame grid; a time inside the last frame's presentation
+        // slice (>= its PTS, < clip end) must still map to that last frame.
+        let idx = (rel / frame_dur).floor() as i64;
+        let idx = idx.max(0);
+        if idx >= count {
+            return None;
+        }
+        // The first presentation frame starts exactly at clip.start; an earlier
+        // time belongs to a preceding ingest gap (or another clip), never here.
+        if source_time < self.start {
+            return None;
+        }
+        Some(idx)
     }
 
     pub fn from_json(v: &Json) -> Result<Clip, String> {
@@ -122,21 +165,39 @@ impl Source {
         Some(merged)
     }
 
-    /// Locate the clip and frame for a program position. Returns None when the
-    /// source is unanchored or has no recorded data there.
+    /// Locate the clip and presentation frame for a program position. Returns
+    /// None when the source is unanchored or has no recorded frame there.
+    ///
+    /// Membership is decided on each clip's presentation frame grid (see
+    /// [`Clip::frame_at`]), so the answer is always a *presentation* frame keyed
+    /// by its engineering timestamp. B-frame decode order never enters the
+    /// decision. Clips are checked by ascending source start, so at an ingest
+    /// boundary the earlier clip deterministically wins; this is a local
+    /// boundary decision and never a global shift of frame numbers.
     pub fn sample_at(&self, program_time: f64) -> Option<SourceSample> {
         let mapping = self.mapping()?;
         let source_time = mapping.program_to_source(program_time);
-        let eps = self.rate.frame_duration() * 0.5;
-        let clip = self.clips.iter().find(|c| c.contains(source_time, eps))?;
-        let clip_offset = (source_time - clip.start).max(0.0);
-        let frame_index = crate::time::nearest_frame(clip_offset, self.rate);
-        Some(SourceSample {
-            source_time,
-            clip_path: clip.path.clone(),
-            clip_offset,
-            frame_index,
-        })
+        let mut order: Vec<usize> = (0..self.clips.len()).collect();
+        order.sort_by(|&a, &b| {
+            self.clips[a]
+                .start
+                .partial_cmp(&self.clips[b].start)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.cmp(&b))
+        });
+        for clip_idx in order {
+            let clip = &self.clips[clip_idx];
+            if let Some(frame_index) = clip.frame_at(source_time, self.rate) {
+                let clip_offset = (source_time - clip.start).max(0.0);
+                return Some(SourceSample {
+                    source_time,
+                    clip_path: clip.path.clone(),
+                    clip_offset,
+                    frame_index,
+                });
+            }
+        }
+        None
     }
 
     /// Is recorded data available across a half-open program interval?

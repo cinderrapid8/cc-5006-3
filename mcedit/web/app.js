@@ -84,23 +84,44 @@ function sourceProgramIntervals(source) {
   return mergedIntervals(spans);
 }
 
+function effectiveFrameCount(clip, source) {
+  // The manifest carries an explicit presentation frame count; fall back to the
+  // duration-derived grid when it is missing.
+  if (clip.frame_count && clip.frame_count > 0) return clip.frame_count;
+  return Math.max(0, Math.round((clip.duration * source.rate.num) / source.rate.den));
+}
+
+// Presentation frame index covering sourceTime inside a clip, or null. Frame k
+// is presented over [start + k*frame_dur, start + (k+1)*frame_dur), so the
+// clip's last frame owns the slice up to the clip end. Decode order (B-frames)
+// never enters this decision.
+function clipFrameAt(clip, sourceTime, source) {
+  const frameDur = source.rate.den / source.rate.num;
+  const count = effectiveFrameCount(clip, source);
+  if (count <= 0) return null;
+  if (sourceTime < clip.start) return null;
+  const rel = sourceTime - clip.start;
+  const idx = Math.max(0, Math.floor(rel / frameDur));
+  return idx < count ? idx : null;
+}
+
 function sampleAt(source, programTime) {
   const m = fitMapping(source.anchors);
   if (!m) return null;
   const sourceTime = programToSource(m, programTime);
-  const frameDur = source.rate.den / source.rate.num;
-  const eps = frameDur * 0.5;
-  const clip = source.clips.find(
-    (c) => sourceTime >= c.start - eps && sourceTime < c.start + c.duration - eps
-  );
-  if (!clip) return null;
-  const clipOffset = Math.max(0, sourceTime - clip.start);
-  return {
-    sourceTime,
-    clip,
-    clipOffset,
-    frameIndex: nearestFrame(clipOffset, source.rate.num, source.rate.den),
-  };
+  // Check clips by ascending source start so an ingest boundary resolves to the
+  // earlier clip deterministically; this is a local decision, never a global
+  // shift of frame numbers.
+  const ordered = [...source.clips].map((clip, original) => ({ clip, original }))
+    .sort((a, b) => (a.clip.start - b.clip.start) || (a.original - b.original));
+  for (const { clip } of ordered) {
+    const frameIndex = clipFrameAt(clip, sourceTime, source);
+    if (frameIndex !== null) {
+      const clipOffset = Math.max(0, sourceTime - clip.start);
+      return { sourceTime, clip, clipOffset, frameIndex };
+    }
+  }
+  return null;
 }
 
 function gapsIn(source, start, end) {
@@ -329,18 +350,81 @@ function syncSourceVideo(source, t) {
   const target = sample.clipOffset;
   const el = v.el;
   if (!el.getClientRects || el.readyState < 1) return;
+  // Parked (non-master) monitors are never the program output, so they use
+  // their own per-element token, distinct from the program switch token.
+  if (v.parkToken === undefined) v.parkToken = 0;
   if (Math.abs(el.currentTime - target) > 0.12) {
+    v.parkToken += 1;
     el.currentTime = target;
   }
 }
 
 let lastActiveSourceId = null;
 
+// ---------------------------------------------------------------------------
+// Switch cache. Every program-time selection gets a monotonically increasing
+// switch token; seeks and frame draws carry the token and the selected camera
+// identity. A late result from an earlier switch (B-frame decode reordering or
+// an async seek resolving after the cut) is discarded, so the camera already
+// chosen for the current engineering time can never be replaced by a stale
+// frame from the previous camera.
+// ---------------------------------------------------------------------------
+
+let switchSeq = 0;
+const switchCache = {
+  token: 0,
+  // camera id selected at the cached program position; null means black
+  sourceId: null,
+  programTime: 0,
+};
+
+function nextSwitchToken(sourceId, t) {
+  switchSeq += 1;
+  switchCache.token = switchSeq;
+  switchCache.sourceId = sourceId;
+  switchCache.programTime = t;
+  return switchCache.token;
+}
+
+function currentSwitchToken() {
+  return switchCache.token;
+}
+
+// Tag a seek with the switch generation that requested it. Seeks issued by an
+// older generation are overwritten rather than allowed to land late.
+function seekSourceVideo(v, target, token) {
+  v.switchToken = token;
+  if (v.el.readyState < 1) return token;
+  if (v.switchToken === token && Math.abs(v.el.currentTime - target) <= 0.12) {
+    return token;
+  }
+  v.el.currentTime = target;
+  return token;
+}
+
+// Paint only when the frame still belongs to the selected camera and current
+// switch generation. Late frames from a previous cut are rejected here.
+function drawFrameIfCurrent(pctx, v, sourceId, token, W, H) {
+  if (v.switchToken !== token || switchCache.sourceId !== sourceId) return false;
+  if (v.el.readyState < 2) return false;
+  pctx.fillStyle = "#000";
+  pctx.fillRect(0, 0, W, H);
+  drawCover(pctx, v.el, W, H);
+  return true;
+}
+
 function updatePreview(t) {
   const pctx = els.preview.getContext("2d");
   const W = els.preview.width;
   const H = els.preview.height;
   const choice = visualChoiceAt(t);
+  const chosenId = choice.kind === "source" ? choice.source.id : null;
+  // A different camera identity (or a move to black) starts a new switch
+  // generation; large scrub jumps likewise invalidate in-flight seeks.
+  if (chosenId !== switchCache.sourceId || Math.abs(t - switchCache.programTime) > 0.5) {
+    nextSwitchToken(chosenId, t);
+  }
+  const token = currentSwitchToken();
 
   if (choice.kind === "black") {
     pctx.fillStyle = "#000";
@@ -354,11 +438,14 @@ function updatePreview(t) {
     const { source, sample, fallback, missing } = choice;
     const v = videos.get(source.id);
     ensureClipLoaded(source, sample.clip.path);
-    if (v && v.el.readyState >= 2) {
-      pctx.fillStyle = "#000";
-      pctx.fillRect(0, 0, W, H);
-      drawCover(pctx, v.el, W, H);
-    } else {
+    let painted = false;
+    if (v) {
+      seekSourceVideo(v, sample.clipOffset, token);
+      painted = drawFrameIfCurrent(pctx, v, source.id, token, W, H);
+    }
+    if (!painted) {
+      // No current frame yet (seek/decode still in flight): hold a neutral
+      // slate, never the previous camera's late frame.
       pctx.fillStyle = "#111";
       pctx.fillRect(0, 0, W, H);
     }
@@ -424,15 +511,23 @@ function updatePreview(t) {
 // ---------------------------------------------------------------------------
 
 function switchClockMaster(choice) {
+  // A master swap invalidates every in-flight seek so a late frame from the
+  // previous camera cannot be painted after the cut.
+  const newId = choice.kind === "source" ? choice.source.id : null;
+  if (newId !== switchCache.sourceId) {
+    nextSwitchToken(newId, switchCache.programTime);
+  }
+  const token = currentSwitchToken();
   for (const [id, v] of videos) {
     v.el.pause();
     v.el.muted = true;
+    v.switchToken = -1;
   }
   activeVideo = null;
   if (choice.kind !== "source") return;
   const v = videos.get(choice.source.id);
   if (!v) return;
-  v.el.currentTime = choice.sample.clipOffset;
+  seekSourceVideo(v, choice.sample.clipOffset, token);
   v.el.muted = project.audio.source_id !== choice.source.id || !!project.audio.external_path;
   v.el.playbackRate = 1;
   const p = v.el.play();
@@ -944,6 +1039,15 @@ window.mcedit = {
   formatProgramTime,
   formatTimecode,
   nearestFrame,
+  clipFrameAt,
+  effectiveFrameCount,
+  nextSwitchToken,
+  currentSwitchToken,
+  seekSourceVideo,
+  drawFrameIfCurrent,
+  // Read-only view of the switch generation cache for headless regression
+  // tests of the late-result identity guard.
+  getSwitchCache: () => ({ ...switchCache }),
 };
 
 refreshProjectList();
